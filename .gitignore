@@ -1,0 +1,17 @@
+.DS_Store
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+build/
+build-tests/
+dist/
+.swiftpm/
+.build/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.pem
+*.key
+# Historical private planning is excluded from public exports.
+docs/plans/

@@ -1,0 +1,18 @@
+# These are HMAC outputs derived from the public fixed-byte fixture keys.
+# BOTH the exact file and exact value must match; new values remain scanned.
+title = "Conductor synthetic protocol fixtures"
+[extend]
+useDefault = true
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "Fixed-key protocol HMACs, not credentials"
+condition = "AND"
+regexTarget = "secret"
+paths = ['\AConductor/ConductorTests/Fixtures/compass-protocol-v1\.json\z']
+regexes = [
+  '\A3939c6c4e153a0a1632abcbc34dff85e557000a43779b661b8acd200b1a9f39e\z',
+  '\A9b607bbe20ff78a7cb615a0cf20c569117b61f96b7e35877b587ef189445348d\z',
+  '\A317298ca9e90bd73da7500fc9c6630a7c56e684bf6a3f9d9f7f3fa0780e2f988\z',
+  '\Acd22af5440a3d52853ab5cc9cac753bb5a8a9d402e0ee4018b73b6b1889eaa7b\z',
+]

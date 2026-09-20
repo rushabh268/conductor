@@ -1,0 +1,32 @@
+name: macOS checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test-and-package:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned build generator
+        env:
+          XCODEGEN_VERSION: "2.46.0"
+          XCODEGEN_SHA256: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
+        run: |
+          curl --fail --location --retry 3 --max-time 120 "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip" -o "$RUNNER_TEMP/xcodegen.zip"
+          printf '%s  %s\n' "$XCODEGEN_SHA256" "$RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/xcodegen-pinned"
+          test "$("$RUNNER_TEMP/xcodegen-pinned/xcodegen/bin/xcodegen" --version)" = "Version: $XCODEGEN_VERSION"
+          echo "$RUNNER_TEMP/xcodegen-pinned/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Shell syntax
+        run: bash -n install.sh uninstall.sh scripts/build.sh scripts/test.sh scripts/package.sh Conductor/scripts/build-dmg.sh
+      - name: Fixture tests
+        run: ./scripts/test.sh
+      - name: Build and package
+        run: ./scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Conductor-macos
+          path: dist/
+          if-no-files-found: error

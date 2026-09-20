@@ -1,0 +1,59 @@
+name: Conductor
+options:
+  bundleIdPrefix: com.conductor
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    exactVersion: "7.10.0"
+
+targets:
+  Conductor:
+    type: application
+    platform: macOS
+    sources:
+      - Conductor
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.conductor.app
+        MARKETING_VERSION: "2.3.0"
+        CURRENT_PROJECT_VERSION: 30
+        INFOPLIST_FILE: Conductor/Info.plist
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        ENABLE_APP_SANDBOX: NO
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_ENTITLEMENTS: Conductor/Conductor.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - package: GRDB
+        product: GRDB
+
+  ConductorTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - ConductorTests
+    dependencies:
+      - target: Conductor
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Conductor.app/Contents/MacOS/Conductor"
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Conductor:
+    build:
+      targets:
+        Conductor: all
+        ConductorTests: [test]
+    test:
+      targets:
+        - ConductorTests
+      environmentVariables:
+        CONDUCTOR_TEST_MODE: "1"

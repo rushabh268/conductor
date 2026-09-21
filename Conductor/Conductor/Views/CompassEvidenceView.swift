@@ -88,7 +88,7 @@ struct CompassEvidenceView: View {
         case "pruned": "An authenticated archive receipt exists for this run. It cannot reconstruct deleted events or per-session monthly grounding."
         case "stale": "Refresh to request a new immutable snapshot."
         case "resource_exhausted": "The request exceeded the companion's bounded verification budget. Native history is still available."
-        default: "This source or retained evidence cannot support the requested association."
+        default: "Compass could not verify this evidence. The verifier may be unavailable, or the retained data may not support this request. Refresh to try again; native history is still available."
         }
     }
 }

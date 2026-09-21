@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GRDB
 @testable import Conductor
 
 private actor IngestionGate {
@@ -56,4 +57,37 @@ private actor IngestionGate {
     await #expect(throws: (any Error).self) {
         try await GitIngestor.runGit(in: fixture.root.path, args: ["rev-parse", "--verify", "missing"])
     }
+}
+
+@MainActor @Test func unsupportedSchemaReportsReaderHealthWithoutChangingNativeLifecycle() async throws {
+    let fixture = try CoreFixture(); defer { fixture.remove() }
+    try FileManager.default.createDirectory(at: fixture.paths.codexRoot, withIntermediateDirectories: true)
+    let nativeURL = fixture.paths.codexRoot.appendingPathComponent("state_5.sqlite")
+    let writer = try DatabaseQueue(path: nativeURL.path)
+    try await writer.write { try $0.execute(sql: "CREATE TABLE threads(id TEXT PRIMARY KEY)") }
+    #expect(throws: NativeReaderError.self) {
+        _ = try NativeDatabase.open(nativeURL, table: "threads", required: ["id", "title"])
+    }
+    let database = try AppDatabase(inMemory: true)
+    let retained = CodexIngestor.parseThread(id: "retained", cwd: "/fixture", title: "Example",
+        gitBranch: nil, gitOriginUrl: nil, tokensUsed: 42, model: nil, cliVersion: nil,
+        createdAt: Int(Date().timeIntervalSince1970), updatedAt: Int(Date().timeIntervalSince1970), firstUserMessage: nil)
+    let saved = try await database.saveSession(retained)
+    try FileManager.default.createDirectory(at: fixture.paths.claudeSessions, withIntermediateDirectories: true)
+    for status in ["waiting", "error"] {
+        let data = Data("{\"pid\":123,\"sessionId\":\"\(status)\",\"cwd\":\"/fixture\",\"startedAt\":\(Int(Date().timeIntervalSince1970 * 1000)),\"status\":\"\(status)\",\"kind\":\"interactive\"}".utf8)
+        try data.write(to: fixture.paths.claudeSessions.appendingPathComponent("\(status).json"))
+    }
+    let coordinator = IngestionCoordinator(db: database, paths: fixture.paths)
+    await coordinator.runIngestion()
+    let health = try #require(coordinator.readerHealth.first { $0.source == .codex })
+    #expect(health.status == "unavailable")
+    #expect(health.detail.contains("schema is unsupported"))
+    let after = try #require(await database.fetchSession(source: .codex, nativeID: "retained"))
+    #expect(after == saved)
+    #expect(after.attentionReason == nil)
+    let attention = try await database.fetchSessions(query: SessionQuery(attentionOnly: true))
+    #expect(Set(attention.map(\.nativeID)) == ["waiting", "error"])
+    #expect(attention.allSatisfy { $0.attentionReason != nil })
+    coordinator.stop()
 }

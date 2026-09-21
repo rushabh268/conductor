@@ -145,6 +145,7 @@ enum ClaudeIngestor {
             try await db.saveSession(session)
         }
     }
+    /// Per-database checkpoints persist successful reads; failed sources remain retryable after restart.
     static func ingestHistoricalSessions(into db: AppDatabase, paths: SourcePaths = .default) async throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: paths.claudeProjects.path) else { return }
@@ -184,11 +185,6 @@ enum ClaudeIngestor {
             }
         }
         if hadFailures { throw NativeReaderError.malformedRecord }
-    }
-    /// Per-database checkpoints are committed only after successful parsing and persistence.
-    /// Failed or unavailable sources remain retryable, including across application restarts.
-    static func backfillHistoricalSessionsIfNeeded(into db: AppDatabase, paths: SourcePaths = .default) async throws {
-        try await ingestHistoricalSessions(into: db, paths: paths)
     }
     private static func emptySession(native: String, paths: SourcePaths) -> Session {
         var session = Session(id: native, source: .claude, sessionType: .coding, name: nil, cwd: nil,

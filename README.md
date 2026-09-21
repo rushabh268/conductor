@@ -6,7 +6,7 @@ Native tools keep ownership of prompts, permissions, configuration, and orchestr
 
 ![Conductor showing three main sessions from Claude Code, OpenCode, and Codex](docs/images/main-sessions.png)
 
-Main-session list, cropped from a synthetic fixture render. The fixture also contains 300 child sessions; those appear when you open a parent's Children tab or change the role filter.
+Main-session list, cropped from a SwiftUI render of synthetic native-format data processed by the three readers. The fixture also contains 300 child sessions; those appear when you open a parent's Children tab or change the role filter. The rows reflect each reader's available fields, rather than implying identical lifecycle or token reporting.
 
 ## Requirements
 
@@ -71,6 +71,8 @@ The build is generated from `Conductor/project.yml`; GRDB is pinned in `Conducto
 ## Behavior and privacy
 
 Main-session classification uses native metadata. Unsupported or missing metadata is shown as unknown or unavailable instead of inferred from session names. Usage comes from recorded native values and may be incomplete; it is not a productivity measure. Source format support is covered by fixtures, not a promise that all past or future native versions are supported.
+
+Archived Codex/OpenCode sessions remain indexed for reconciliation but are excluded from visible lists and their counts, activity, and usage. Descendant traversal stops at archived or locally hidden branches. Unarchiving restores visibility unless the session is also locally hidden. Source-reader failures appear in Connections; Attention uses available native waiting/error states.
 
 Transcripts stay local unless the user explicitly chooses an export or external action. Conductor does not automatically export raw prompts, install hooks, enable plugins, start native services, or bootstrap Compass. A missing Compass service leaves native browsing available.
 

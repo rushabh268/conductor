@@ -41,7 +41,7 @@ import Testing
     #expect(try await migrated.fetchAllSessions().count == 1)
 }
 
-@Test func failedBackfillRetriesAfterRestartAndDoesNotCrossDatabases() async throws {
+@Test func failedHistoricalIngestionRetriesAfterRestartAndDoesNotCrossDatabases() async throws {
     let fixture = try CoreFixture(); defer { fixture.remove() }
     let project = fixture.paths.claudeProjects.appendingPathComponent("synthetic")
     try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
@@ -49,24 +49,24 @@ import Testing
     try Data("malformed\n".utf8).write(to: transcript)
     let path = fixture.root.appendingPathComponent("conductor.db").path
     let first = try AppDatabase(path: path)
-    await #expect(throws: (any Error).self) { try await ClaudeIngestor.backfillHistoricalSessionsIfNeeded(into: first, paths: fixture.paths) }
+    await #expect(throws: (any Error).self) { try await ClaudeIngestor.ingestHistoricalSessions(into: first, paths: fixture.paths) }
     #expect(try await first.checkpoint(path: "claude:default:\(transcript.path)") == nil)
     try Data("{\"type\":\"custom-title\",\"customTitle\":\"repaired\"}\n".utf8).write(to: transcript)
     let restarted = try AppDatabase(path: path)
-    try await ClaudeIngestor.backfillHistoricalSessionsIfNeeded(into: restarted, paths: fixture.paths)
+    try await ClaudeIngestor.ingestHistoricalSessions(into: restarted, paths: fixture.paths)
     #expect(try await restarted.fetchAllSessions().first?.name == "repaired")
     let unrelated = try AppDatabase(inMemory: true)
-    try await ClaudeIngestor.backfillHistoricalSessionsIfNeeded(into: unrelated, paths: fixture.paths)
+    try await ClaudeIngestor.ingestHistoricalSessions(into: unrelated, paths: fixture.paths)
     #expect(try await unrelated.fetchAllSessions().count == 1)
 }
 
-@Test func malformedTranscriptDoesNotPreventOtherBackfillFiles() async throws {
+@Test func malformedTranscriptDoesNotPreventOtherHistoricalFiles() async throws {
     let fixture = try CoreFixture(); defer { fixture.remove() }
     let project = fixture.paths.claudeProjects.appendingPathComponent("synthetic")
     try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
     try Data("malformed\n".utf8).write(to: project.appendingPathComponent("broken.jsonl"))
     try Data("{\"type\":\"user\",\"message\":{\"content\":\"good\"}}\n".utf8).write(to: project.appendingPathComponent("good.jsonl"))
     let db = try AppDatabase(inMemory: true)
-    await #expect(throws: (any Error).self) { try await ClaudeIngestor.backfillHistoricalSessionsIfNeeded(into: db, paths: fixture.paths) }
+    await #expect(throws: (any Error).self) { try await ClaudeIngestor.ingestHistoricalSessions(into: db, paths: fixture.paths) }
     #expect(try await db.fetchSession(source: .claude, nativeID: "good")?.messageCount == 1)
 }

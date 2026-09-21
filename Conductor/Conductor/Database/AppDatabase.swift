@@ -134,6 +134,7 @@ struct AppDatabase: Sendable {
                 t.add(column: "classificationProvenance", .text).notNull().defaults(to: "legacy")
                 t.add(column: "lastActivityAt", .datetime)
                 t.add(column: "sourceVersion", .text)
+                // Historical shipped column retained for migration compatibility; reader health is source-level.
                 t.add(column: "sourceCompatibility", .text).notNull().defaults(to: "supported")
                 t.add(column: "transcriptPath", .text)
                 t.add(column: "usageScope", .text).notNull().defaults(to: "own")
@@ -155,6 +156,12 @@ struct AppDatabase: Sendable {
             }
         }
         return migrator
+    }
+
+    /// User-facing populations exclude native archives independently of local hiding.
+    /// Identity lookup and reconciliation deliberately retain both kinds of record.
+    private static var visibleSessions: QueryInterfaceRequest<Session> {
+        Session.filter(sql: "isHidden = 0 AND lower(COALESCE(status, '')) != 'archived'")
     }
 
     // MARK: - Session CRUD
@@ -180,13 +187,13 @@ struct AppDatabase: Sendable {
 
     func fetchSession(id: String) async throws -> Session? {
         try await dbWriter.read { db in
-            try Session.filter(Column("id") == id).filter(Column("isHidden") == false).fetchOne(db)
+            try Self.visibleSessions.filter(Column("id") == id).fetchOne(db)
         }
     }
 
     func fetchSessions(since: Date, source: SessionSource? = nil, onlyNamed: Bool = false) async throws -> [Session] {
         try await dbWriter.read { db in
-            var request = Session.filter(sql: "COALESCE(lastActivityAt, endedAt, startedAt) >= ?", arguments: [since]).filter(Column("role") == SessionRole.main).filter(Column("isHidden") == false)
+            var request = Self.visibleSessions.filter(sql: "COALESCE(lastActivityAt, endedAt, startedAt) >= ?", arguments: [since]).filter(Column("role") == SessionRole.main)
             if let source {
                 request = request.filter(Column("source") == source)
             }
@@ -199,7 +206,7 @@ struct AppDatabase: Sendable {
 
     func fetchAllSessions(onlyNamed: Bool = false) async throws -> [Session] {
         try await dbWriter.read { db in
-            var request = Session.filter(Column("role") == SessionRole.main).filter(Column("isHidden") == false)
+            var request = Self.visibleSessions.filter(Column("role") == SessionRole.main)
             if onlyNamed {
                 request = request.filter(Column("isExplicitlyNamed") == true)
             }
@@ -221,10 +228,10 @@ struct AppDatabase: Sendable {
 
     func fetchReviewSessions(since: Date) async throws -> [Session] {
         try await dbWriter.read { db in
-            try Session
+            try Self.visibleSessions
                 .filter(Column("startedAt") >= since)
                 .filter(Column("sessionType") == SessionType.review)
-                .filter(Column("role") == SessionRole.main).filter(Column("isHidden") == false)
+                .filter(Column("role") == SessionRole.main)
                 .order(Column("startedAt").desc)
                 .fetchAll(db)
         }
@@ -382,12 +389,12 @@ extension AppDatabase {
         }
     }
     private static func request(_ query: SessionQuery) -> QueryInterfaceRequest<Session> {
-        var request = Session.filter(Column("isHidden") == false)
+        var request = Self.visibleSessions
         if query.onlyNamed { request = request.filter(Column("isExplicitlyNamed") == true) }
         if let role = query.role { request = request.filter(Column("role") == role) }
         if let source = query.source { request = request.filter(Column("source") == source) }
         if query.attentionOnly {
-            request = request.filter(sql: "(lower(COALESCE(status, '')) IN ('error', 'failed', 'waiting', 'waiting_for_input', 'waiting_for_approval') OR sourceCompatibility != 'supported')")
+            request = request.filter(sql: "(lower(COALESCE(status, '')) IN ('error', 'failed', 'waiting', 'waiting_for_input', 'waiting_for_approval'))")
         }
         if let profile = query.profileID { request = request.filter(Column("profileID") == profile) }
         if let parent = query.parentNativeID { request = request.filter(Column("parentNativeID") == parent) }
@@ -404,7 +411,7 @@ extension AppDatabase {
     func sessionCounts() async throws -> SessionCounts {
         try await dbWriter.read { db in
             var result = SessionCounts()
-            for row in try Row.fetchAll(db, sql: "SELECT role, COUNT(*) AS count FROM sessions WHERE isHidden = 0 GROUP BY role") {
+            for row in try Row.fetchAll(db, Self.visibleSessions.select(sql: "role, COUNT(*) AS count").group(Column("role"))) {
                 let count: Int = row["count"]
                 switch row["role"] as String {
                 case "main": result.main = count
@@ -426,10 +433,9 @@ extension AppDatabase {
                 while let parent = pending.popLast() {
                     // Native aggregate usage must not be added to its own descendants.
                     guard parent.usageScope != "descendants" else { continue }
-                    let children = try Session.filter(Column("source") == parent.source)
+                    let children = try Self.visibleSessions.filter(Column("source") == parent.source)
                         .filter(Column("profileID") == parent.profileID)
-                        .filter(Column("parentNativeID") == parent.effectiveNativeID)
-                        .filter(Column("isHidden") == false).fetchAll(db)
+                        .filter(Column("parentNativeID") == parent.effectiveNativeID).fetchAll(db)
                     for child in children where visited.insert(child.id).inserted {
                         sessions.append(child); pending.append(child)
                     }

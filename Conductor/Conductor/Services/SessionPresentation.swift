@@ -25,7 +25,7 @@ extension Session {
         switch status?.lowercased() {
         case "error", "failed": "Native source reported an error"
         case "waiting", "waiting_for_input", "waiting_for_approval": "Native source reported waiting"
-        default: sourceCompatibility == "supported" ? nil : "Native source needs compatibility review"
+        default: nil
         }
     }
     var tokenDescription: String { usageAvailable ? "\(tokensUsed.formatted()) recorded tokens" : "Token usage unavailable" }

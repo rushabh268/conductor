@@ -169,9 +169,9 @@ import Foundation
     #expect(session?.isExplicitlyNamed == true)
 }
 
-@Test func backfillHistoricalSessionsFillsInV3FieldsOnce() async throws {
-    // Finding 5+7: pre-v3 rows were frozen at isExplicitlyNamed=false, cacheReadTokens=0,
-    // cacheCreationTokens=0 forever. backfillHistoricalSessionsIfNeeded is the one-time fix.
+@Test func historicalIngestionReconcilesLegacyFieldsAndCheckpoints() async throws {
+    // Historical ingestion reconciles legacy naming and cache-token fields,
+    // then checkpoints each successfully parsed file in this database.
 
     let fixture = try CoreFixture()
     defer { fixture.remove() }
@@ -202,7 +202,7 @@ import Foundation
     )
     try await db.saveSession(preV3Session)
 
-    try await ClaudeIngestor.backfillHistoricalSessionsIfNeeded(into: db, paths: fixture.paths)
+    try await ClaudeIngestor.ingestHistoricalSessions(into: db, paths: fixture.paths)
 
     let backfilled = try await db.fetchSession(source: .claude, nativeID: sessionId)
     #expect(backfilled?.isExplicitlyNamed == true)
@@ -212,14 +212,12 @@ import Foundation
     #expect(backfilled?.tokensUsed == 5 + 7 + 121029484 + 954654858)
 
     // A persisted file checkpoint makes a second unchanged pass a no-op.
-    try await ClaudeIngestor.backfillHistoricalSessionsIfNeeded(into: db, paths: fixture.paths)
+    try await ClaudeIngestor.ingestHistoricalSessions(into: db, paths: fixture.paths)
 }
 
-@Test func backfillSkipsRowWhenJsonlParseYieldsNoData() async throws {
-    // parseJsonlMetadata returns an all-zero/nil struct on any read failure
-    // (I/O error, invalid UTF-8, huge file). Backfill must NOT clobber an
-    // existing row to zeros in that case — it's a one-time pass, so a
-    // clobbered row would stay wrong forever.
+@Test func historicalIngestionPreservesRowWhenJsonlIsEmpty() async throws {
+    // Empty historical files must not overwrite retained metadata or usage.
+    // Later populated files remain eligible for ingestion.
 
     let fixture = try CoreFixture()
     defer { fixture.remove() }
@@ -230,8 +228,7 @@ import Foundation
 
     try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
     let jsonlFile = projectDir.appendingPathComponent("\(sessionId).jsonl")
-    // Empty file: parseJsonlMetadata will parse zero lines, yielding a metadata
-    // struct with explicitName == nil and all token counts == 0.
+    // An empty file contains no metadata to reconcile.
     try "".write(to: jsonlFile, atomically: true, encoding: .utf8)
 
     let db = try AppDatabase(inMemory: true)
@@ -245,7 +242,7 @@ import Foundation
     )
     try await db.saveSession(preV3Session)
 
-    try await ClaudeIngestor.backfillHistoricalSessionsIfNeeded(into: db, paths: fixture.paths)
+    try await ClaudeIngestor.ingestHistoricalSessions(into: db, paths: fixture.paths)
 
     let after = try await db.fetchSession(source: .claude, nativeID: sessionId)
     #expect(after?.name == "existing-name")

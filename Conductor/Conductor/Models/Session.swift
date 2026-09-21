@@ -47,7 +47,6 @@ struct Session: Identifiable, Codable, FetchableRecord, MutablePersistableRecord
     var classificationProvenance: String = "legacy"
     var lastActivityAt: Date? = nil
     var sourceVersion: String? = nil
-    var sourceCompatibility: String = "supported"
     var transcriptPath: String? = nil
     var usageScope: String = "own"
     var usageAvailable: Bool = true

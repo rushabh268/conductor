@@ -4,7 +4,7 @@ Conductor is a personal, open-source macOS companion for local Claude Code, Code
 
 Native tools keep ownership of prompts, permissions, configuration, and orchestration. Conductor reads their local history and maintains its own index. Optional [Compass](https://github.com/rushabh268/compass) integration supplies observed evidence through a dedicated reader connection; it does not prove task completion.
 
-![Conductor showing three main sessions from Claude Code, OpenCode, and Codex](docs/images/main-sessions.png)
+![Conductor showing main-session rows from top to bottom: Claude Code, Codex, and OpenCode](docs/images/main-sessions.png)
 
 Main-session list, cropped from a SwiftUI render of synthetic native-format data processed by the three readers. The fixture also contains 300 child sessions; those appear when you open a parent's Children tab or change the role filter. The rows reflect each reader's available fields, rather than implying identical lifecycle or token reporting.
 
